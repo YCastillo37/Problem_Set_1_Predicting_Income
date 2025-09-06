@@ -1,0 +1,69 @@
+remove(list = ls())
+
+library(rvest)
+library(tidyverse)
+library(purrr)
+
+# URL base
+url_base <- "https://ignaciomsarmiento.github.io/GEIH2018_sample/pages/"
+
+# Generamos las URLs de las páginas (del 1 al 10 por ejemplo)
+paginas <- paste0(url_base, "geih_page_", 1:10, ".html")
+
+extraer_tabla <- function(url_tabla){
+  pagina <- read_html(url_tabla)
+  nodo_tabla <- pagina %>% 
+    html_node("table")
+  tabla <- nodo_tabla %>% 
+    html_table(fill = TRUE)
+  
+  names(tabla) <- if_else(
+    is.na(names(tabla)) | names(tabla) == "",
+    paste0("col_", seq_along(tabla)),
+    names(tabla)
+  )
+  
+  tabla %>% mutate(origen = url_tabla)
+}
+
+
+data_final <- map_dfr(paginas, extraer_tabla)
+
+class(data_final)
+
+glimpse(data_final)
+
+data_final
+
+tail(data_final, 
+     n = 1)
+
+setwd('C:\\Users\\fevid\\OneDrive\\Documentos\\MEcA')
+
+#data_final$p7422s1
+
+#save(data_final, file = "raw_data_GEIH.RData")
+
+table(data_final$p6240)
+
+df_1 <- data_final %>% 
+  filter(age >= 18) %>% 
+  filter(!is.na(impaes)) %>% 
+  filter(ocu %in% 1)
+
+sum(is.na(df_1$totalHoursWorked))
+
+df_2 <- df_1 %>% 
+  mutate(horas_mes_Worked = totalHoursWorked*4, 
+         salario_hora = impaes/horas_mes_Worked)
+
+#df_2 <- df_1 %>% 
+#  mutate(horas_mes_Worked = totalHoursWorked*4, 
+#         salario_hora = sum(impaes, isaes, na.rm = TRUE)/horas_mes_Worked)
+
+
+save(df_2, file = "data_imputada_GEIH.RData")
+
+write.csv2(df_2, 'data_imputada_GEIH.csv')
+
+readstata13::save.dta13(df_2, 'data_imputada_GEIH.dta')
