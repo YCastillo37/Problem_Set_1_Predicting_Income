@@ -1,9 +1,14 @@
 remove(list = ls())
-
-library(rvest)
-library(tidyverse)
-library(purrr)
-
+install.packages("pacman") 
+require(pacman)
+p_load(tidyverse, 
+       rvest,
+       purrr,
+       skimr,
+       dplyr,
+       summarytools,
+       xtable,
+       kableExtra) # Librería de web scraping.
 # URL base
 url_base <- "https://ignaciomsarmiento.github.io/GEIH2018_sample/pages/"
 
@@ -38,32 +43,80 @@ data_final
 tail(data_final, 
      n = 1)
 
-setwd('C:\\Users\\fevid\\OneDrive\\Documentos\\MEcA')
+setwd('C:\\Users\\ASUS\\Desktop\\Desktop\\ARCHIVOS ESCRITORIO YENNY\\MAESTRIA\\BIG DATA\\TALLER 1')
 
 #data_final$p7422s1
 
 #save(data_final, file = "raw_data_GEIH.RData")
 
-table(data_final$p6240)
+table(data_final$dominio)
+
+sum(is.na(data_final$age))
+
+class(data_final$age)
 
 df_1 <- data_final %>% 
-  filter(age >= 18) %>% 
-  filter(!is.na(impaes)) %>% 
-  filter(ocu %in% 1)
+  filter(age >= 18)
 
-sum(is.na(df_1$totalHoursWorked))
+test <- df_1 %>% 
+  filter(p7422s1 != 0 & !is.na(p7422s1))
+
+mediana_0 <- median(test$p7422s1)
+
+mediana_0
 
 df_2 <- df_1 %>% 
-  mutate(horas_mes_Worked = totalHoursWorked*4, 
-         salario_hora = impaes/horas_mes_Worked)
-
-#df_2 <- df_1 %>% 
-#  mutate(horas_mes_Worked = totalHoursWorked*4, 
-#         salario_hora = sum(impaes, isaes, na.rm = TRUE)/horas_mes_Worked)
-
+  mutate(p7422s1 = case_when(is.na(p7422s1) ~ mediana_0,
+                             p7422s1 == 0 ~ 1,
+                               TRUE ~ p7422s1))
 
 save(df_2, file = "data_imputada_GEIH.RData")
 
-write.csv2(df_2, 'data_imputada_GEIH.csv')
+# Generamos tabla con estadisticas descriptivas
 
-readstata13::save.dta13(df_2, 'data_imputada_GEIH.dta')
+# Función para calcular la moda
+moda <- function(x) {
+  ux <- na.omit(unique(x))
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+#Estadísticas para variables numéricas
+tabla_cont <- df_2 %>%
+  summarise(
+    Edad_N = sum(!is.na(age)),
+    Edad_Media = mean(age, na.rm = TRUE),
+    Edad_Mediana = median(age, na.rm = TRUE),
+    Edad_Moda = moda (age),
+    P7422s1_N = sum(!is.na(p7422s1)),
+    P7422s1_Media = mean(p7422s1, na.rm = TRUE),
+    P7422s1_Mediana = median(p7422s1, na.rm = TRUE),
+    P7422s1_Moda =moda (p7422s1)
+  ) %>%
+  pivot_longer(everything(),
+               names_to = c("Variable", ".value"),
+               names_pattern = "(.*)_(.*)")
+
+# Estadísticas para estrato (solo N y moda)
+tabla_estrato <- df_2 %>%
+  summarise(
+    N = sum(!is.na(estrato1)),
+    Moda = moda (estrato1)
+  ) %>%
+  mutate(Variable = "Estrato1",
+         Media = NA,
+         Mediana = NA) %>%
+  select(Variable, N, Media, Mediana, Moda)
+
+# Unimos ambas tablas
+tabla_estadisticas <- bind_rows(tabla_cont, tabla_estrato) %>%
+  select(Variable, N, Media, Mediana, Moda)
+
+# Generamos la tabla en LaTeX
+print(
+  xtable(tabla_estadisticas, 
+         caption = "Tabla 1 - Estadísticas Descriptivas"),
+  include.rownames = FALSE,
+  type = "latex"
+)
+
+tabla_estadisticas
